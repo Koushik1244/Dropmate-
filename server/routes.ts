@@ -482,3 +482,74 @@ export async function registerRoutes(
 
   return httpServer;
 }
+// Add to routes.ts
+
+import { PolkadotEscrowService } from './services/polkadot.service';
+
+let polkadotService: PolkadotEscrowService | null = null;
+
+export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+  // Initialize Polkadot service
+  try {
+    polkadotService = new PolkadotEscrowService({
+      rpcEndpoint: process.env.POLKADOT_RPC || 'wss://rococo-rpc.polkadot.io',
+      contractAddress: process.env.RIDE_ESCROW_CONTRACT || '',
+      backendPrivateKey: process.env.BACKEND_PRIVATE_KEY,
+    });
+    await polkadotService.initialize();
+  } catch (error) {
+    console.warn('⚠️ Polkadot service unavailable (optional):', error);
+  }
+
+  // ... existing WebSocket code ...
+
+  /**
+   * POST /api/orders/:rideId/confirm-delivery-chain
+   * Release funds to driver after geofence check
+   */
+  app.post('/api/orders/:rideId/confirm-delivery-chain', async (req, res) => {
+    try {
+      if (!polkadotService) {
+        return res.status(503).json({ message: 'Blockchain service unavailable' });
+      }
+
+      const { rideId } = req.params;
+      const { driverId, customerLat, customerLng, dropLat, dropLng } = req.body;
+
+      const ride = await storage.getRide(rideId);
+      if (!ride) {
+        return res.status(404).json({ message: 'Ride not found' });
+      }
+
+      // Verify geofence
+      const distance = Math.sqrt(
+        Math.pow(customerLat - dropLat, 2) + Math.pow(customerLng - dropLng, 2)
+      ) * 111; // Convert to km
+
+      if (distance > 0.05) { // 50 meters
+        return res.status(400).json({ message: 'Not at destination yet' });
+      }
+
+      // Call Polkadot contract
+      const result = await polkadotService.confirmDelivery(rideId);
+
+      // Update ride
+      const updatedRide = await storage.updateRide(rideId, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+        releaseTxHash: result.hash,
+      });
+
+      // Broadcast completion
+      broadcastRideStatus(rideId, { status: 'completed' });
+
+      res.json({
+        ride: updatedRide,
+        transaction: { hash: result.hash, blockNumber: result.blockNumber },
+      });
+    } catch (error) {
+      console.error('Confirm delivery error:', error);
+      res.status(500).json({ message: 'Failed to confirm delivery' });
+    }
+  });
+}

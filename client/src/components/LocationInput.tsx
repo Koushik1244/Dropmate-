@@ -107,11 +107,11 @@ export function LocationInput({
             className="pl-10 pr-10"
             data-testid={`input-${type}-location`}
           />
-          <Button
+         <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="absolute right-1 top-1/2 -translate-y-1/2"
+            className="absolute right-1 top-1/2 -translate-y-1/2" // These classes are correct
             onClick={handleGetCurrentLocation}
             data-testid={`button-current-location-${type}`}
           >
