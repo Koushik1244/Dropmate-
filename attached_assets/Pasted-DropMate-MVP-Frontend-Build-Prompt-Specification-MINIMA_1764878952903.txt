@@ -1,0 +1,368 @@
+DropMate MVP Frontend - Build Prompt & Specification
+🎯 MINIMAL VIABLE FRONTEND
+Build a single-page web application for DropMate MVP with the following core features only:
+
+1. TECH STACK (Minimal)
+text
+Framework: React 18 + TypeScript
+Styling: Tailwind CSS
+State Management: React Context + useState
+Blockchain: ethers.js (wallet connection)
+Maps: Leaflet.js (lightweight)
+Real-time: WebSocket for live GPS
+Build Tool: Vite
+2. CORE PAGES (5 pages total)
+Page 1: Auth/Wallet Connection
+Components:
+
+Logo + title ("DropMate")
+
+Two buttons: "Connect as Customer" | "Connect as Driver"
+
+Wallet selection dropdown (MetaMask, Stellar, etc.)
+
+Connected wallet address display
+
+State: isConnected, userRole, walletAddress
+
+No Form: Just wallet connection
+
+Page 2: Customer Dashboard
+After login, customer sees:
+
+Header: Connected wallet + balance (XLM/USD)
+
+Main Action: Large "Request Ride" button
+
+Active Ride Card (if ride exists):
+
+Ride ID
+
+Driver name + rating (⭐ 4.5/5)
+
+Driver location map (Leaflet)
+
+Estimated arrival time
+
+Status: "Driver en route" | "Arrived" | "In progress"
+
+Cancel button
+
+Ride History: Last 3 completed rides (minimal card view)
+
+Page 3: Ride Request Modal
+Popup when customer clicks "Request Ride":
+
+Form Fields (minimal):
+
+Pickup location (text input or map click)
+
+Dropoff location (text input or map click)
+
+Fare estimate (auto-calculated) → "Estimated: $5.50"
+
+Stake amount (pre-filled from estimate + 15% buffer)
+
+Buttons:
+
+"Request Ride" (submits to backend)
+
+"Cancel"
+
+Loading State: Spinner while waiting for driver
+
+Page 4: Driver Dashboard
+After login, driver sees:
+
+Header: Connected wallet + balance + reputation score (55/100)
+
+Available Rides List:
+
+Cards showing: Pickup location, dropoff, fare, customer rating
+
+"Accept Ride" button on each
+
+Auto-refresh every 3 seconds
+
+Active Ride Card (if ride accepted):
+
+Customer name + rating
+
+Pickup location with map
+
+Dropoff location
+
+Fare amount
+
+"Start Ride" button (once at pickup)
+
+"Complete Ride" button (once at destination)
+
+Navigation: Toggle between "Available Rides" and "Active Ride"
+
+Page 5: Ride In-Progress
+Both customer and driver see (shared view):
+
+Live Map (Leaflet):
+
+Driver's current location (red pin)
+
+Dropoff location (blue pin)
+
+Route line connecting them
+
+Real-time position updates via WebSocket
+
+Stats Panel:
+
+Distance remaining: "2.3 km"
+
+Est. time: "8 minutes"
+
+Current fare: "$4.20"
+
+Driver/Customer name + rating
+
+Driver-only buttons: "Complete Ride" (when at destination)
+
+Customer-only button: "Panic" (emergency - triggers alert)
+
+3. MINIMAL API ENDPOINTS NEEDED (Backend)
+text
+POST /api/auth/connect
+├─ Input: { walletAddress, role: "customer"|"driver" }
+└─ Output: { token, user: { id, role, reputation, balance } }
+
+POST /api/rides/request
+├─ Input: { pickup, dropoff, estimatedFare, stakedAmount, customerId }
+└─ Output: { rideId, status: "waiting", createdAt }
+
+GET /api/rides/available
+├─ Output: [{ rideId, pickup, dropoff, fare, customerRating }]
+
+POST /api/rides/{rideId}/accept
+├─ Input: { driverId }
+└─ Output: { rideId, status: "accepted", driverId }
+
+POST /api/rides/{rideId}/complete
+├─ Input: { completedBy: "customer"|"driver", rating?, feedback? }
+└─ Output: { rideId, status: "completed", paymentTxHash }
+
+GET /api/rides/{rideId}
+├─ Output: { rideId, status, driver, customer, currentLocation, fare }
+
+WebSocket /ws/ride/{rideId}
+├─ Subscribe to live GPS updates
+└─ Receives: { lat, lng, timestamp, speed }
+
+GET /api/user/profile
+├─ Output: { id, reputation, completedRides, avgRating, balance }
+4. UI/UX FLOW (Simplified)
+text
+START
+├─ User lands on app
+│  ├─ Clicks "Connect Wallet"
+│  ├─ Selects role (Customer or Driver)
+│  └─ MetaMask popup confirms
+│
+├─ IF CUSTOMER:
+│  ├─ Dashboard: "Request Ride" button prominent
+│  ├─ Click → Modal opens (pickup/dropoff form)
+│  ├─ Enter locations → Fare shows automatically
+│  ├─ Click "Request Ride"
+│  ├─ Waiting screen (spinner + "Waiting for driver...")
+│  ├─ Driver accepts → Live map appears
+│  ├─ Driver arrives → Status changes
+│  ├─ Ride ends → Rate driver screen pops up
+│  └─ Back to dashboard
+│
+└─ IF DRIVER:
+   ├─ Dashboard: List of available rides
+   ├─ Click "Accept Ride"
+   ├─ Active ride shows pickup location + "Start Ride" button
+   ├─ At pickup: Click "Start Ride"
+   ├─ Live map shows route + customer's current fare
+   ├─ Arrive at destination: Click "Complete Ride"
+   ├─ Confirmation → Back to available rides list
+   └─ Reputation updated
+5. COMPONENT STRUCTURE (React)
+text
+src/
+├─ App.tsx
+├─ context/
+│  ├─ AuthContext.tsx (wallet, user role, balance)
+│  └─ RideContext.tsx (active ride, rides list)
+├─ pages/
+│  ├─ AuthPage.tsx
+│  ├─ CustomerDashboard.tsx
+│  ├─ DriverDashboard.tsx
+│  ├─ RideInProgress.tsx
+│  └─ RideRequestModal.tsx
+├─ components/
+│  ├─ Header.tsx (logo, wallet, balance)
+│  ├─ LiveMap.tsx (Leaflet map)
+│  ├─ RideCard.tsx (ride display)
+│  ├─ RideHistory.tsx (past rides)
+│  ├─ RatingPopup.tsx (rate driver/customer)
+│  └─ Spinner.tsx (loading state)
+├─ hooks/
+│  ├─ useWallet.ts (connect/disconnect)
+│  ├─ useRide.ts (fetch, accept, complete rides)
+│  ├─ useWebSocket.ts (live GPS updates)
+│  └─ useGeolocation.ts (get user's current location)
+├─ services/
+│  ├─ api.ts (all API calls)
+│  ├─ blockchain.ts (Soroban contract interaction)
+│  └─ ws.ts (WebSocket client)
+├─ styles/
+│  └─ globals.css (Tailwind)
+└─ types/
+   └─ index.ts (TypeScript interfaces)
+6. KEY STATE MANAGEMENT (Context)
+AuthContext
+typescript
+{
+  walletAddress: string | null,
+  userRole: "customer" | "driver" | null,
+  balance: number, // XLM
+  isConnected: boolean,
+  reputation: number, // 0-100
+}
+RideContext
+typescript
+{
+  activeRide: {
+    rideId: string,
+    status: "waiting" | "accepted" | "in_progress" | "completed",
+    driver?: { name, address, rating },
+    customer?: { name, address, rating },
+    pickup: { lat, lng },
+    dropoff: { lat, lng },
+    currentLocation: { lat, lng },
+    fare: number,
+    createdAt: timestamp,
+  } | null,
+  availableRides: Ride[],
+  rideHistory: Ride[],
+}
+7. STYLING APPROACH (Tailwind)
+Colors:
+
+Primary: Teal (ride-sharing theme)
+
+Success: Green (completed rides)
+
+Danger: Red (cancellations, errors)
+
+Neutral: Gray (backgrounds)
+
+Spacing: Follow Tailwind defaults (4px base unit)
+
+Responsive: Mobile-first (sm, md, lg breakpoints)
+
+Cards: Light shadow, rounded corners
+
+Buttons: Large tap targets (min 44px)
+
+8. MINIMAL FEATURES (MVP ONLY)
+✅ Include:
+
+Wallet connection
+
+Customer: Request ride
+
+Driver: Accept ride, complete ride
+
+Live map tracking
+
+Fare display
+
+Simple rating (1-5 stars)
+
+Ride history
+
+Balance display
+
+❌ Exclude (for later):
+
+Surge pricing UI
+
+Reputation staking
+
+Dispute system
+
+Advanced analytics
+
+Push notifications
+
+Profile settings
+
+Payment methods
+
+Referral code system
+
+9. BUILD INSTRUCTIONS
+bash
+# Create Vite project
+npm create vite@latest dropmate-web -- --template react-ts
+
+# Install dependencies
+cd dropmate-web
+npm install
+
+# Core packages needed
+npm install react-router-dom axios leaflet react-leaflet ethers
+
+# Dev dependencies
+npm install -D tailwindcss postcss autoprefixer
+npx tailwindcss init -p
+
+# Start dev server
+npm run dev
+
+# Build for production
+npm run build
+10. ENVIRONMENT VARIABLES (.env.local)
+text
+VITE_API_URL=http://localhost:8000
+VITE_WS_URL=ws://localhost:8000
+VITE_STELLAR_NETWORK=testnet
+VITE_SOROBAN_CONTRACT_ADDRESS=C...
+11. QUICK START MOCKUP FLOWS
+Customer Request Ride Flow
+text
+1. User lands → "Connect Wallet" button
+2. Select "Customer" role
+3. MetaMask connects → Dashboard loads
+4. Shows: "Request Ride" button + balance ($0 initially for testnet)
+5. Click button → Modal: Enter "Central Station" → "Airport"
+6. Auto-calculates: $5.50 fare, $6.33 stake (with buffer)
+7. Click "Request Ride"
+8. Loading spinner for 5-10 seconds
+9. Backend finds driver
+10. "Driver assigned" → Shows driver name + rating
+11. Live map shows driver approaching
+12. Countdown: "Driver arrives in 3 min"
+13. Driver arrives → "In Progress" state
+14. Live map centers on route
+15. Shows distance remaining + eta
+16. Driver completes → Rating popup
+17. Rate: ⭐⭐⭐⭐⭐ + "Great driver!"
+18. Back to dashboard
+Driver Accept Ride Flow
+text
+1. Driver dashboard loads
+2. Shows 5 available rides in a list:
+   - "Market Street → Airport" ($5.50, ⭐4.2 customer)
+   - etc.
+3. Driver clicks "Accept" on one
+4. Becomes "Active Ride"
+5. Map shows pickup location
+6. Driver navigates there (manually)
+7. At pickup: Click "Start Ride" button
+8. GPS updates show on map in real-time
+9. Driver navigates to dropoff
+10. Arrive at destination: Click "Complete Ride"
+11. Confirmation popup
+12. Payment processed (smart contract)
+13. Back to available rides
